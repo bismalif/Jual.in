@@ -21,6 +21,7 @@ static hashPassword(password) {
 // Creates a new user
 static async createUser(username, password, email) {
     const passwordHash = User.hashPassword(password);
+    console.log(passwordHash)
     const newUser = new User(null, username, passwordHash, email);
     
     const query = 'INSERT INTO Users (username, password_hash, email) VALUES ($1, $2, $3) RETURNING user_id';
