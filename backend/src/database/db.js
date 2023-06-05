@@ -16,7 +16,6 @@ const pool = new Pool({
   },
 });
 
-
 async function testConnection() {
   try {
     const client = await pool.connect();
@@ -24,9 +23,9 @@ async function testConnection() {
     client.release();
   } catch (error) {
     console.error('Error connecting to the database:', error);
-  } finally {
-    pool.end(); // Close the connection pool
   }
 }
 
 testConnection();
+
+module.exports = { pool };

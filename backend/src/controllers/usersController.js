@@ -1,55 +1,64 @@
 const bcrypt = require('bcrypt');
 const db = require('../database/db');
 
-// Register a new user
-const registerUser = async (req, res) => {
+const saltRounds = 10;
+
+// Helper function to hash the password
+const hashPassword = async (password) => {
   try {
-    const { username, password, email } = req.body;
-    
-    // Hash the password
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-    
-    const query = 'INSERT INTO Users (username, password_hash, email) VALUES ($1, $2, $3) RETURNING user_id';
-    const values = [username, passwordHash, email];
-    
-    const result = await db.query(query, values);
-    const newUser = {
-      user_id: result.rows[0].user_id,
-      username,
-      email
-    };
-    
-    res.json(newUser);
+    const salt = await bcrypt.genSalt(saltRounds);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    return hashedPassword;
   } catch (error) {
-    res.status(500).json({ error: 'Failed to register user' });
+    throw new Error('Failed to hash password');
   }
 };
 
+// Register a new user
+const registerUser = async (req, res) => {
+    const { username, password, email } = req.body;
+  
+    try {
+      const hashedPassword = await hashPassword(password);
+      const query = 'INSERT INTO Users (username, password_hash, email) VALUES ($1, $2, $3) RETURNING user_id';
+      const values = [username, hashedPassword, email];
+      const result = await db.pool.query(query, values); // Use db.pool.query instead of db.query
+  
+      const newUser = {
+        user_id: result.rows[0].user_id,
+        username,
+        email
+      };
+  
+      res.status(201).json(newUser);
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({ error: 'Failed to register user' });
+    }
+  };
+
 // Login user
 const loginUser = async (req, res) => {
+  const { username, password } = req.body;
+  
   try {
-    const { username, password } = req.body;
-    
     const query = 'SELECT * FROM Users WHERE username = $1';
-    const values = [username];
-    
-    const result = await db.query(query, values);
+    const result = await db.query(query, [username]);
     
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
     
     const user = result.rows[0];
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
     
-    // Compare the entered password with the hashed password
-    const match = await bcrypt.compare(password, user.password_hash);
-    
-    if (!match) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+    if (!passwordMatch) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
     }
     
-    res.json({ message: 'Login successful', user_id: user.user_id });
+    res.status(200).json({ message: 'Login successful' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to login' });
   }
@@ -57,44 +66,35 @@ const loginUser = async (req, res) => {
 
 // Get user by ID
 const getUserById = async (req, res) => {
+  const { id } = req.params;
+  
   try {
-    const { id } = req.params;
-    
     const query = 'SELECT * FROM Users WHERE user_id = $1';
-    const values = [id];
-    
-    const result = await db.query(query, values);
+    const result = await db.query(query, [id]);
     
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
     
     const user = result.rows[0];
-    
-    res.json(user);
+    res.status(200).json(user);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to get user' });
+    res.status(500).json({ error: 'Failed to retrieve user' });
   }
 };
 
 // Update user by ID
 const updateUserById = async (req, res) => {
+  const { id } = req.params;
+  const { username, email } = req.body;
+  
   try {
-    const { id } = req.params;
-    const { username, email } = req.body;
-    
-    const query = 'UPDATE Users SET username = $1, email = $2 WHERE user_id = $3 RETURNING *';
+    const query = 'UPDATE Users SET username = $1, email = $2 WHERE user_id = $3';
     const values = [username, email, id];
+    await db.query(query, values);
     
-    const result = await db.query(query, values);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const updatedUser = result.rows[0];
-    
-    res.json(updatedUser);
+    res.status(200).json({ message: 'User updated successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update user' });
   }
@@ -102,21 +102,13 @@ const updateUserById = async (req, res) => {
 
 // Delete user by ID
 const deleteUserById = async (req, res) => {
+  const { id } = req.params;
+  
   try {
-    const { id } = req.params;
+    const query = 'DELETE FROM Users WHERE user_id = $1';
+    await db.query(query, [id]);
     
-    const query = 'DELETE FROM Users WHERE user_id = $1 RETURNING *';
-    const values = [id];
-    
-    const result = await db.query(query, values);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const deletedUser = result.rows[0];
-    
-    res.json(deletedUser);
+    res.status(200).json({ message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete user' });
   }
