@@ -1,5 +1,7 @@
 const bcrypt = require('bcrypt');
 const db = require('../database/db');
+const { pool } = require('../database/db');
+
 
 const saltRounds = 10;
 
@@ -41,10 +43,10 @@ const registerUser = async (req, res) => {
 // Login user or admin
 const loginUser = async (req, res) => {
   const { username, password, role } = req.body;
-
+  console.log(req.body);
   try {
     const query = 'SELECT * FROM Users WHERE username = $1 AND role = $2';
-    const result = await db.query(query, [username, role]);
+    const result = await db.pool.query(query, [username, role]);
 
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'User not found' });
@@ -61,6 +63,7 @@ const loginUser = async (req, res) => {
 
     res.status(200).json({ message: 'Login successful' });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ error: 'Failed to login' });
   }
 };
@@ -68,10 +71,12 @@ const loginUser = async (req, res) => {
 // Get user by ID
 const getUserById = async (req, res) => {
   const { id } = req.params;
+  console.log(req.body);
 
   try {
     const query = 'SELECT * FROM Users WHERE user_id = $1';
-    const result = await db.query(query, [id]);
+    const result = await db.pool.query(query, [id]);
+    //console.log(result.rows);
 
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'User not found' });
@@ -81,6 +86,7 @@ const getUserById = async (req, res) => {
     const user = result.rows[0];
     res.status(200).json(user);
   } catch (error) {
+    console.log(error);
     res.status(500).json({ error: 'Failed to retrieve user' });
   }
 };
@@ -88,18 +94,27 @@ const getUserById = async (req, res) => {
 // Update user by ID
 const updateUserById = async (req, res) => {
   const { id } = req.params;
-  const { username, email } = req.body;
+  const { username, email, password } = req.body;
 
   try {
-    const query = 'UPDATE Users SET username = $1, email = $2 WHERE user_id = $3';
-    const values = [username, email, id];
-    await db.query(query, values);
+    let hashedPassword;
+
+    if (password) {
+      // Hash the new password
+      hashedPassword = await hashPassword(password);
+    }
+
+    const query = 'UPDATE Users SET username = $1, email = $2, password_hash = $3 WHERE user_id = $4';
+    const values = [username, email, hashedPassword, id];
+    await db.pool.query(query, values);
 
     res.status(200).json({ message: 'User updated successfully' });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ error: 'Failed to update user' });
   }
 };
+
 
 // Delete user by ID
 const deleteUserById = async (req, res) => {
@@ -107,7 +122,7 @@ const deleteUserById = async (req, res) => {
 
   try {
     const query = 'DELETE FROM Users WHERE user_id = $1';
-    await db.query(query, [id]);
+    await db.pool.query(query, [id]);
 
     res.status(200).json({ message: 'User deleted successfully' });
   } catch (error) {
