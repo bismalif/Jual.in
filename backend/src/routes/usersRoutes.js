@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const usersController = require('../controllers/usersController');
 
-// Register a new user
+// Register a new user or admin
 router.post('/register', usersController.registerUser);
 
-// Login user
+// Login user or admin
 router.post('/login', usersController.loginUser);
 
 // Get user by ID
